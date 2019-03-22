@@ -349,6 +349,18 @@ int cso_deserialize(container *destobj,const char *buf,int buflen)
       }
       buf+=2; buflen-=2; size+=2;
     }
+    else if (buflen>=4 && !strncasecmp(buf,"true",4)) {
+      cso_set_int(destobj,varName,0,1);
+      buf+=4; buflen-=4; size+=4;
+    }
+    else if (buflen>=5 && !strncasecmp(buf,"false",5)) {
+      cso_set_int(destobj,varName,0,0);
+      buf+=5; buflen-=5; size+=5;
+    }
+    else if (buflen>=4 && !strncasecmp(buf,"null",4)) {
+      /* silently ignore */
+      buf+=4; buflen-=4; size+=4;
+    }
     else {
       goto bailout;
     }
