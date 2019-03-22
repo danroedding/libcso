@@ -1,5 +1,5 @@
-libcso: A small library for handling compond data objects with JSON support
-===========================================================================
+libcso: A small library for handling compound data objects with JSON support
+============================================================================
 
 Author: Daniel Roedding <daniel@roedding-software.de>
 Version: 1.01, 22.03.2019
