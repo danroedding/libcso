@@ -1,0 +1,211 @@
+libcso: A small library for handling compond data objects with JSON support
+===========================================================================
+
+Author: Daniel Roedding <daniel@roedding-software.de>
+Version: 1.01, 22.03.2019
+
+
+Introduction
+------------
+
+libcso is a small library that allows you to handle structured data
+easily. CSO is a shortcut for "container standard object". A container
+object may contain multiple key/value relationships. There is also
+way to serialize data to JSON, and also import JSON data into such a
+container object. However, there are some restrictions in JSON
+compatibility, see details below.
+
+This library has been implemented to provide a small and convenient
+method of handling compound data. One goal has been to keep the
+implementation pretty small, allowing to also use it in the context
+of software running on embedded systems.
+
+
+
+Technical approach, interface design
+------------------------------------
+
+Container objects:
+
+The library provides a data type simply named "container". This is the
+only data type visible to the outside, and access to container objects
+may be performed in some kind of object-oriented approach.
+
+Container objects are created/allocated using the cso_new() function,
+and they may be released with cso_delete(). After a container object
+has been set up, single fields may be accessed using setter and getter
+functions, e. g. cso_set_str(), cso_get_str() for strings.
+
+
+Data types within a container:
+
+Within a container, the following basic data types may be stored:
+
+- null-terminated C-style strings
+- integer values
+- container subobjects
+- binary fields
+
+For strings, integers and subobjects, arrays are supported. For binary
+fields, there is no array support.
+
+When setting strings and integers, the values provided to the setter
+methods are always copied. In case of subobjects and binary fields, it
+is possible to inherit a subobject or a binary data buffer to the
+container object. Use the "inherit" flag to chose whether the setter
+function shall copy data, or if you want to avoid copying and directly
+link the supplied data into the object.
+
+The getter methods for strings and integers provide the values for
+reading. The getters for subobjects and binary fields provide a "detach"
+flag, which again may help to reduce data copy cycles. If you set the
+"detach" flag when using cso_get_obj() or cso_get_bin(), data pointers
+are detached from internal data structures and the returned object/buffer
+is inherited to the caller. By using inherit and detach feature, you may
+transfer field values and subobjects between containers or other
+data structures without copying the payload in memory.
+
+When working with subobjects, single fields may be accessed using a
+"path to field" notation. For example, if you use cso_get_str() to
+access a field named "subobj.otherobj.variable", then the getter
+would automatically descend down in the object structure. The setters
+will do that, too. When using a setter function to store values in
+a path that does not exist yet, the setter will automatically attempt
+to create the necessary subobjects.
+
+
+Loose data typing and (limited) auto-conversion:
+
+The setter and getter methods for strings and integers have limited
+auto-conversion support included. For example, if you are expecting
+a string value, but you're reading a field that has been previously
+filled with an integer value, cso_get_str() will automatically convert
+the stored number to a string. Same happens for example if you try
+to read a string using the cso_get_bin() function.
+
+Auto-conversion is very limited, though. For example, subobjects cannot
+be converted to other types. Also, mixing up string and integer fields
+wildly may result in unexpected results. For example, if you write
+a number stored in a C-style string to a field that has been previously
+set as an integer field, this is possible and auto-conversion is donw.
+However, if you store a non-numeric string in the same field, the
+setter will return with an error. So please don't be too careless about
+data typization. The auto-conversion mechanism is mainly intended to
+make things easier for people getting data from the outside, e. g. by
+reading JSON data that came in from some API.
+
+
+
+Serializing to JSON and reading in JSON data
+--------------------------------------------
+
+Serialization:
+
+The contents of a container object may be serialized to JSON using the
+cso_serialize() function. This function automatically allocates a buffer
+large enough that serialized data fit into it.
+
+If you want to provide the buffer by yourself for some reason (e. g.
+becasue you want to add header or trailer data), you may use
+cso_serialize_to_buffer() and ask libcso for required buffer size
+by using the cso_get_serialized_size() function. Please note that
+cso_get_serialized_size() will frequently return a value slightly
+larger than actually needed. The calculation function is not fully
+accurate to keep things simple and improve performance. However,
+cso_serialize() and cso_serialize_to_buffer() will always return
+the accurate size of serialized data.
+
+
+Deserialization:
+
+Reading in JSON is simple, too: Just create a container object with
+cso_new(), then use the cso_deserialize() function. It will read JSON
+from given input buffer and store the values in the container object.
+Nested objects are possible.
+
+
+Restrictions in JSON support:
+
+libcso does not include full json support. For example, floating point
+fields are not supported. Also, boolean fields ("true"/"false") will
+be auto-converted to integers when reading in JSON data. Fields with
+a "null" value will be silently ignored.
+
+Another restriction applies to the outer structure: besides the
+standard case of structured objects, surrounded by "{" and "}",
+JSON also supports arrays and even single values on the top-level.
+libcso does not support those JSON variants. Instead, it always
+expect a JSON input to start with "{" and end with "}".
+
+
+Proprietary extensions:
+
+The JSON parser allows for C++-style comments in the input data stream.
+If "//" is detected, the rest of a line is considered as comment.
+
+For binary data, a proprietary encoding is used. So if you are using
+binary fields in your container objects and serialize them, the resulting
+data will not be processable by standard JSON parsers. However, libcso
+interoperates with CContainer from the ias2/2014 framework, which uses
+the same enconding for binary data.
+
+
+
+Interface documentation
+-----------------------
+
+Users of libcso should only use the functions described in cso_core.h,
+cso_serialize.h and cso_deserialize.h.
+
+In those three header files, there is a short interface description for
+each function.
+
+
+
+Internal data model and efficiency issues
+-----------------------------------------
+
+First: Don't expect any complex algorithms within. It's really a KISS
+implementation. No magic inside.
+
+Container objects are basically a linear list containing data structures
+for each single key/value relation. When accessing fields, libcso
+performs a linear search on them. This is efficient for small amounts
+of key/value relations, but may become inefficient for huge objects.
+
+Strings, objects and binary values are allocated in separately malloc()ed
+memory areas. If a field is used as an array, an additional memory block
+will be opened to hold pointers (strings/objects) or values (integers).
+
+The author considers this data model as sufficient for most standard
+applications. Especially in the API context, you frequently won't have
+more than a dozen key/value relations on a single level of a compound
+data structure. However, if you're messing around with many dozens of
+values on a single level, this library might probably not be the best
+solution for you. Decide for yourself!
+
+
+
+Test program
+------------
+
+The subdirectory "csotest" contains a small test program which may be used
+for regression tests. Also, you'll see some example calls for all functions.
+Feel free to experiment with it.
+
+
+
+Status of implementation
+------------------------
+
+libcso is in productive use since October 2018 and has been tested in
+several hundred installations. It appears to be rather bug-free and does
+not seem to contain any memleak issues. But as always, there may still
+be sleeping dragons hiding within. If you're encontering any trouble,
+feel free to contact the author.
+
+
+Thanks for reading. And now have fun with it!
+
+
+
